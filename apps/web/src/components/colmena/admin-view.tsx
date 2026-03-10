@@ -2,12 +2,23 @@
 
 import { formatEthLike, formatInteger, shortAddress } from "@/lib/format";
 import { ONCHAIN } from "@/lib/onchain-config";
-import { useCampaignReads, useFactoryReads, useNetworkPulse } from "@/hooks/use-colmena-onchain";
+import {
+  useCampaignReads,
+  useFactoryReads,
+  useFujiGuard,
+  useNetworkPulse,
+  useVerifierActions,
+} from "@/hooks/use-colmena-onchain";
+import { useCampaignContextStore } from "@/store/campaign-context";
 
 export function AdminView() {
+  const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
+  const campaignAddress = activeCampaignAddress ?? ONCHAIN.campaignAddress;
   const pulse = useNetworkPulse();
   const factory = useFactoryReads();
-  const campaign = useCampaignReads();
+  const campaign = useCampaignReads(campaignAddress);
+  const verifier = useVerifierActions();
+  const chain = useFujiGuard();
 
   const alerts: string[] = [];
   if (campaign.donationsPaused) alerts.push("Donaciones en pausa");
@@ -30,7 +41,7 @@ export function AdminView() {
         <div className="grid gap-4 md:grid-cols-5">
           <Card title="Block">{pulse.blockNumber ? formatInteger(pulse.blockNumber) : "—"}</Card>
           <Card title="Factory">{shortAddress(ONCHAIN.factoryAddress)}</Card>
-          <Card title="Campaign">{shortAddress(ONCHAIN.campaignAddress)}</Card>
+          <Card title="Campaign">{shortAddress(campaignAddress)}</Card>
           <Card title="Campaigns">{factory.campaignCount ? factory.campaignCount.toString() : "—"}</Card>
           <Card title="Fee">{factory.platformFeeBps ? `${factory.platformFeeBps.toString()} bps` : "—"}</Card>
         </div>
@@ -56,6 +67,52 @@ export function AdminView() {
           <p className="mt-4 text-xs text-white/55">
             Estado donaciones: {campaign.donationsPaused ? "PAUSADAS" : "ACTIVAS"} · Creador: {shortAddress(campaign.creator)}
           </p>
+          <div className="mt-4 rounded-lg border border-white/20 bg-black/20 p-3">
+            <p className="text-xs text-white/70">
+              Accion verificador: aprobar hito actual en `MilestoneVerifier.approveMilestone`.
+            </p>
+            <button
+              onClick={() =>
+                campaignAddress &&
+                verifier.approveMilestone(
+                  campaignAddress,
+                  Number(campaign.nextMilestoneToRelease ?? BigInt(0)),
+                  "ipfs://colmena-evidence-placeholder"
+                )
+              }
+              disabled={!verifier.hasVerifier || !campaignAddress || verifier.approve.isPending}
+              className="mt-2 rounded border border-[#F5C842] bg-[#F5C842] px-3 py-1.5 text-xs font-extrabold text-black"
+            >
+              {verifier.approve.isPending ? "Aprobando..." : "Aprobar hito on-chain"}
+            </button>
+            <button
+              onClick={() =>
+                campaignAddress &&
+                verifier.revokeMilestone(campaignAddress, Number(campaign.nextMilestoneToRelease ?? BigInt(0)))
+              }
+              disabled={!verifier.hasVerifier || !campaignAddress || verifier.revoke.isPending}
+              className="ml-2 mt-2 rounded border border-white/40 bg-white/10 px-3 py-1.5 text-xs font-extrabold text-white"
+            >
+              {verifier.revoke.isPending ? "Revocando..." : "Revocar hito"}
+            </button>
+            {!chain.isFuji && (
+              <button
+                onClick={chain.switchToFuji}
+                disabled={chain.isSwitching}
+                className="ml-2 mt-2 rounded border border-[#F5C842] bg-[#F5C842] px-3 py-1.5 text-xs font-extrabold text-black"
+              >
+                {chain.isSwitching ? "Cambiando..." : "Switch a Fuji"}
+              </button>
+            )}
+            {verifier.approve.hash && (
+              <p className="mt-1 text-[11px] text-white/60">TX approve: {verifier.approve.hash.slice(0, 10)}...</p>
+            )}
+            {verifier.approve.error && (
+              <p className="mt-1 text-[11px] font-semibold text-red-300">{verifier.approve.error.message}</p>
+            )}
+            {verifier.revoke.error && <p className="mt-1 text-[11px] font-semibold text-red-300">{verifier.revoke.error.message}</p>}
+            {chain.switchError && <p className="mt-1 text-[11px] font-semibold text-red-300">{chain.switchError.message}</p>}
+          </div>
         </div>
       </div>
     </main>

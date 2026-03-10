@@ -1,13 +1,17 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Milestone, Project } from "@/lib/colmena-data";
-import { formatInteger } from "@/lib/format";
+import { formatEthLike, formatInteger } from "@/lib/format";
+import { ONCHAIN } from "@/lib/onchain-config";
+import { useCampaignActions, useFujiGuard, useMilestonesOnchain } from "@/hooks/use-colmena-onchain";
+import { useCampaignContextStore } from "@/store/campaign-context";
 
 type Props = {
   project: Project;
   milestones: Milestone[];
+  initialCampaignAddress?: `0x${string}`;
 };
 
 type Tab = "hitos" | "updates" | "onchain";
@@ -18,18 +22,57 @@ function statusStyles(status: Milestone["status"]) {
   return "border-zinc-300 bg-zinc-100 text-zinc-600";
 }
 
-export function ProjectView({ project, milestones }: Props) {
+export function ProjectView({ project, milestones, initialCampaignAddress }: Props) {
   const [tab, setTab] = useState<Tab>("hitos");
   const [asset, setAsset] = useState<"USDC" | "AVAX">("USDC");
   const [amount, setAmount] = useState("");
-  const [txState, setTxState] = useState<"idle" | "confirming" | "success">("idle");
+  const [localError, setLocalError] = useState("");
+  const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
+  const setActiveCampaignAddress = useCampaignContextStore((state) => state.setActiveCampaignAddress);
+  const campaignAddress = initialCampaignAddress ?? activeCampaignAddress ?? ONCHAIN.campaignAddress;
+  const actions = useCampaignActions(campaignAddress);
+  const chain = useFujiGuard();
+  const onchain = useMilestonesOnchain(campaignAddress);
+
+  useEffect(() => {
+    if (initialCampaignAddress) {
+      setActiveCampaignAddress(initialCampaignAddress);
+    }
+  }, [initialCampaignAddress, setActiveCampaignAddress]);
 
   const progress = Math.min(100, Math.round((project.raised / project.goal) * 100));
+  const renderedMilestones = onchain.milestones.length
+    ? onchain.milestones.map((milestone) => ({
+        id: milestone.id + 1,
+        title: `Milestone ${milestone.id + 1}`,
+        amountLabel: `${formatEthLike(milestone.amount)} AVAX`,
+        status: milestone.status,
+        date: milestone.evidence ? "Con evidencia" : "Sin evidencia",
+        hash: milestone.evidence ? "IPFS" : null,
+        votes: milestone.approved ? 1 : 0,
+        required: 1,
+      }))
+    : milestones;
 
   const doDonate = () => {
-    if (!amount) return;
-    setTxState("confirming");
-    window.setTimeout(() => setTxState("success"), 1200);
+    setLocalError("");
+    if (!actions.hasCampaignActions) {
+      setLocalError("Configura NEXT_PUBLIC_CAMPAIGN_ADDRESS para donar on-chain.");
+      return;
+    }
+    if (!amount || Number(amount) <= 0) {
+      setLocalError("Ingresa un monto valido.");
+      return;
+    }
+    if (!chain.isFuji) {
+      setLocalError("Debes estar en Avalanche Fuji para ejecutar donate().");
+      return;
+    }
+    if (asset !== "AVAX") {
+      setLocalError("El contrato donate() actual recibe AVAX nativo.");
+      return;
+    }
+    actions.donateNative(amount);
   };
 
   return (
@@ -63,7 +106,7 @@ export function ProjectView({ project, milestones }: Props) {
 
           {tab === "hitos" && (
             <div className="overflow-hidden rounded-xl border-2 border-black bg-white shadow-[4px_4px_0_#111]">
-              {milestones.map((milestone) => (
+              {renderedMilestones.map((milestone) => (
                 <div key={milestone.id} className="border-b border-zinc-200 p-4 last:border-b-0">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <h3 className="text-sm font-black uppercase">
@@ -74,7 +117,9 @@ export function ProjectView({ project, milestones }: Props) {
                     </span>
                   </div>
                   <p className="text-xs text-black/70">
-                    {milestone.pct}% · ${formatInteger(milestone.amount)} {milestone.asset} · {milestone.date}
+                  {"amountLabel" in milestone
+                    ? `${milestone.amountLabel} · ${milestone.date}`
+                    : `${milestone.pct}% · $${formatInteger(milestone.amount)} ${milestone.asset} · ${milestone.date}`}
                   </p>
                   {milestone.status === "active" && (
                     <div className="mt-2">
@@ -108,7 +153,7 @@ export function ProjectView({ project, milestones }: Props) {
             <div className="rounded-xl border-2 border-black bg-white p-5 shadow-[4px_4px_0_#111]">
               <div className="space-y-2 text-sm">
                 <p>
-                  <strong>Contrato:</strong> {project.contract}
+                  <strong>Contrato:</strong> {campaignAddress ?? project.contract}
                 </p>
                 <p>
                   <strong>Red:</strong> Avalanche Fuji (43113)
@@ -137,7 +182,7 @@ export function ProjectView({ project, milestones }: Props) {
 
           <div className="space-y-3 p-4">
             <ConnectButton showBalance={false} />
-            {txState === "success" ? (
+            {actions.donate.isSuccess ? (
               <div className="rounded-md border-2 border-green-500 bg-green-50 p-3 text-sm font-semibold text-green-800">
                 Inversion confirmada en Fuji.
               </div>
@@ -166,10 +211,40 @@ export function ProjectView({ project, milestones }: Props) {
                 </div>
                 <button
                   onClick={doDonate}
+                  disabled={actions.donate.isPending}
                   className="w-full rounded-md border-2 border-black bg-[#E84142] px-4 py-2 text-sm font-extrabold text-white"
                 >
-                  {txState === "confirming" ? "Confirmando..." : `Donar ${amount || "..."} ${asset}`}
+                  {actions.donate.isPending ? "Confirmando..." : `Donar ${amount || "..."} ${asset}`}
                 </button>
+                {!chain.isFuji && (
+                  <button
+                    onClick={chain.switchToFuji}
+                    disabled={chain.isSwitching}
+                    className="w-full rounded-md border-2 border-black bg-[#F5C842] px-4 py-2 text-sm font-extrabold"
+                  >
+                    {chain.isSwitching ? "Cambiando red..." : "Cambiar a Avalanche Fuji"}
+                  </button>
+                )}
+                {actions.donate.hash && (
+                  <p className="text-[11px] text-black/60">TX donate: {actions.donate.hash.slice(0, 10)}...</p>
+                )}
+                {actions.donate.error && (
+                  <p className="text-[11px] font-semibold text-red-600">{actions.donate.error.message}</p>
+                )}
+                {localError && <p className="text-[11px] font-semibold text-red-600">{localError}</p>}
+                {chain.switchError && <p className="text-[11px] font-semibold text-red-600">{chain.switchError.message}</p>}
+                {ONCHAIN.campaignAddress && (
+                  <button
+                    onClick={() => actions.claimRevenue()}
+                    disabled={actions.claim.isPending}
+                    className="w-full rounded-md border-2 border-black bg-white px-4 py-2 text-sm font-extrabold"
+                  >
+                    {actions.claim.isPending ? "Reclamando..." : "Claim Revenue"}
+                  </button>
+                )}
+                {actions.claim.hash && (
+                  <p className="text-[11px] text-black/60">TX claim: {actions.claim.hash.slice(0, 10)}...</p>
+                )}
               </>
             )}
           </div>

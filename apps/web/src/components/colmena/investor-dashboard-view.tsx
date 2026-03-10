@@ -3,12 +3,24 @@
 import Link from "next/link";
 import { projects } from "@/lib/colmena-data";
 import { formatEthLike, formatInteger, shortAddress } from "@/lib/format";
-import { useCampaignReads, useInvestorClaimable, useNetworkPulse } from "@/hooks/use-colmena-onchain";
+import {
+  useCampaignActions,
+  useCampaignReads,
+  useFujiGuard,
+  useInvestorClaimable,
+  useNetworkPulse,
+} from "@/hooks/use-colmena-onchain";
+import { ONCHAIN } from "@/lib/onchain-config";
+import { useCampaignContextStore } from "@/store/campaign-context";
 
 export function InvestorDashboardView() {
+  const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
+  const campaignAddress = activeCampaignAddress ?? ONCHAIN.campaignAddress;
   const pulse = useNetworkPulse();
-  const campaign = useCampaignReads();
-  const revenue = useInvestorClaimable();
+  const campaign = useCampaignReads(campaignAddress);
+  const revenue = useInvestorClaimable(campaignAddress);
+  const actions = useCampaignActions(campaignAddress);
+  const chain = useFujiGuard();
 
   return (
     <main className="min-h-screen bg-zinc-100 px-6 py-8 text-[#111]">
@@ -25,6 +37,30 @@ export function InvestorDashboardView() {
             {revenue.hasRevenue ? `${formatEthLike(revenue.claimable)} AVAX` : "Define NEXT_PUBLIC_REVENUE_SHARING_ADDRESS"}
           </Card>
           <Card title="Backers">{campaign.totalBackers ? campaign.totalBackers.toString() : "—"}</Card>
+        </div>
+        <div className="mt-4 rounded-lg border-2 border-black bg-white p-4 shadow-[3px_3px_0_#111]">
+          <p className="text-xs font-bold uppercase tracking-wider text-black/60">Accion on-chain</p>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              onClick={() => actions.claimRevenue()}
+              disabled={!actions.hasCampaignActions || actions.claim.isPending}
+              className="rounded-md border-2 border-black bg-[#F5C842] px-3 py-1.5 text-xs font-extrabold"
+            >
+              {actions.claim.isPending ? "Reclamando..." : "Claim Revenue"}
+            </button>
+            {!chain.isFuji && (
+              <button
+                onClick={chain.switchToFuji}
+                disabled={chain.isSwitching}
+                className="rounded-md border-2 border-black bg-[#F5C842] px-3 py-1.5 text-xs font-extrabold"
+              >
+                {chain.isSwitching ? "Cambiando..." : "Switch a Fuji"}
+              </button>
+            )}
+            {actions.claim.hash && <span className="text-[11px] text-black/60">TX: {actions.claim.hash.slice(0, 10)}...</span>}
+          </div>
+          {actions.claim.error && <p className="mt-1 text-[11px] font-semibold text-red-600">{actions.claim.error.message}</p>}
+          {chain.switchError && <p className="mt-1 text-[11px] font-semibold text-red-600">{chain.switchError.message}</p>}
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">

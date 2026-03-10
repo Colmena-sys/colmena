@@ -9,4 +9,5 @@ export const ONCHAIN = {
   factoryAddress: maybeAddress(process.env.NEXT_PUBLIC_FACTORY_ADDRESS),
   campaignAddress: maybeAddress(process.env.NEXT_PUBLIC_CAMPAIGN_ADDRESS),
   revenueSharingAddress: maybeAddress(process.env.NEXT_PUBLIC_REVENUE_SHARING_ADDRESS),
+  verifierAddress: maybeAddress(process.env.NEXT_PUBLIC_VERIFIER_ADDRESS),
 };
