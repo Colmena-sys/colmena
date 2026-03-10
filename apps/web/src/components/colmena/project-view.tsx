@@ -4,7 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useEffect, useState } from "react";
 import type { Milestone, Project } from "@/lib/colmena-data";
 import { formatEthLike, formatInteger } from "@/lib/format";
-import { ONCHAIN } from "@/lib/onchain-config";
+import { useContractsConfig } from "@/lib/contracts";
 import { useCampaignActions, useFujiGuard, useMilestonesOnchain } from "@/hooks/use-colmena-onchain";
 import { useCampaignContextStore } from "@/store/campaign-context";
 
@@ -23,13 +23,14 @@ function statusStyles(status: Milestone["status"]) {
 }
 
 export function ProjectView({ project, milestones, initialCampaignAddress }: Props) {
+  const { contracts } = useContractsConfig();
   const [tab, setTab] = useState<Tab>("hitos");
   const [asset, setAsset] = useState<"USDC" | "AVAX">("USDC");
   const [amount, setAmount] = useState("");
   const [localError, setLocalError] = useState("");
   const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
   const setActiveCampaignAddress = useCampaignContextStore((state) => state.setActiveCampaignAddress);
-  const campaignAddress = initialCampaignAddress ?? activeCampaignAddress ?? ONCHAIN.campaignAddress;
+  const campaignAddress = initialCampaignAddress ?? activeCampaignAddress ?? contracts.CampaignEscrow;
   const actions = useCampaignActions(campaignAddress);
   const chain = useFujiGuard();
   const onchain = useMilestonesOnchain(campaignAddress);
@@ -233,7 +234,7 @@ export function ProjectView({ project, milestones, initialCampaignAddress }: Pro
                 )}
                 {localError && <p className="text-[11px] font-semibold text-red-600">{localError}</p>}
                 {chain.switchError && <p className="text-[11px] font-semibold text-red-600">{chain.switchError.message}</p>}
-                {ONCHAIN.campaignAddress && (
+                {campaignAddress && (
                   <button
                     onClick={() => actions.claimRevenue()}
                     disabled={actions.claim.isPending}

@@ -10,12 +10,13 @@ import {
   useInvestorClaimable,
   useNetworkPulse,
 } from "@/hooks/use-colmena-onchain";
-import { ONCHAIN } from "@/lib/onchain-config";
+import { useContractsConfig } from "@/lib/contracts";
 import { useCampaignContextStore } from "@/store/campaign-context";
 
 export function InvestorDashboardView() {
+  const { contracts } = useContractsConfig();
   const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
-  const campaignAddress = activeCampaignAddress ?? ONCHAIN.campaignAddress;
+  const campaignAddress = activeCampaignAddress ?? contracts.CampaignEscrow;
   const pulse = useNetworkPulse();
   const campaign = useCampaignReads(campaignAddress);
   const revenue = useInvestorClaimable(campaignAddress);

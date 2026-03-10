@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { decodeEventLog, parseAbi, parseEther } from "viem";
+import { decodeEventLog, parseEther } from "viem";
 import {
   useAccount,
   useBalance,
@@ -13,42 +13,14 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { avalancheFuji } from "wagmi/chains";
-import { ONCHAIN } from "@/lib/onchain-config";
-
-const factoryAbi = parseAbi([
-  "function campaignCount() view returns (uint256)",
-  "function platformFeeBps() view returns (uint256)",
-  "function createCampaign(uint256[] milestoneAmounts, string metadataURI) returns (address)",
-  "event CampaignCreated(address indexed campaign, address indexed creator, uint256 indexed campaignId, string metadataURI)",
-]);
-
-const escrowAbi = parseAbi([
-  "function milestones(uint256) view returns (uint256 amount, bool released)",
-  "function creator() view returns (address)",
-  "function feeBps() view returns (uint256)",
-  "function donationsPaused() view returns (bool)",
-  "function milestoneCount() view returns (uint256)",
-  "function totalGrossDonations() view returns (uint256)",
-  "function totalNetContributions() view returns (uint256)",
-  "function totalReleasedToCreator() view returns (uint256)",
-  "function totalFeePaid() view returns (uint256)",
-  "function totalBackers() view returns (uint256)",
-  "function nextMilestoneToRelease() view returns (uint256)",
-]);
-
-const revenueAbi = parseAbi(["function claimable(address campaign, address backer) view returns (uint256)"]);
-const escrowWriteAbi = parseAbi([
-  "function donate() payable",
-  "function claimRevenue() returns (uint256)",
-  "function releaseMilestone(uint256 milestoneId)",
-]);
-const verifierAbi = parseAbi([
-  "function isMilestoneApproved(address campaign, uint256 milestoneId) view returns (bool)",
-  "function milestoneEvidence(address campaign, uint256 milestoneId) view returns (string)",
-  "function approveMilestone(address campaign, uint256 milestoneId, string evidenceURI)",
-  "function revokeMilestone(address campaign, uint256 milestoneId)",
-]);
+import {
+  ESCROW_ABI,
+  FACTORY_ABI,
+  REVENUE_SHARING_ABI,
+  VERIFIER_ABI,
+  useContractsConfig,
+} from "@/lib/contracts";
+import { TARGET_CHAIN_ID } from "@/lib/web3";
 
 export type OnchainMilestone = {
   id: number;
@@ -77,28 +49,31 @@ export function useNetworkPulse() {
 export function useFujiGuard() {
   const chainId = useChainId();
   const switcher = useSwitchChain();
-  const isFuji = chainId === avalancheFuji.id;
+  const targetChainId = TARGET_CHAIN_ID;
+  const isFuji = chainId === targetChainId;
 
   return {
     chainId,
     isFuji,
-    switchToFuji: () => switcher.switchChain({ chainId: avalancheFuji.id }),
+    switchToFuji: () => switcher.switchChain({ chainId: targetChainId }),
     isSwitching: switcher.isPending,
     switchError: switcher.error,
   };
 }
 
 export function useFactoryReads() {
-  const enabled = Boolean(ONCHAIN.factoryAddress);
+  const { contracts } = useContractsConfig();
+  const factoryAddress = contracts.ColmenaFactory;
+  const enabled = Boolean(factoryAddress);
   const count = useReadContract({
-    abi: factoryAbi,
-    address: ONCHAIN.factoryAddress,
+    abi: FACTORY_ABI,
+    address: factoryAddress,
     functionName: "campaignCount",
     query: { enabled },
   });
   const fee = useReadContract({
-    abi: factoryAbi,
-    address: ONCHAIN.factoryAddress,
+    abi: FACTORY_ABI,
+    address: factoryAddress,
     functionName: "platformFeeBps",
     query: { enabled },
   });
@@ -111,21 +86,22 @@ export function useFactoryReads() {
 }
 
 export function useCampaignReads(campaignAddress?: `0x${string}`) {
-  const address = campaignAddress ?? ONCHAIN.campaignAddress;
+  const { contracts } = useContractsConfig();
+  const address = campaignAddress ?? contracts.CampaignEscrow;
   const enabled = Boolean(address);
 
   const reads = useReadContracts({
     contracts: [
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "creator" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "feeBps" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "donationsPaused" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "milestoneCount" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "totalGrossDonations" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "totalNetContributions" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "totalReleasedToCreator" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "totalFeePaid" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "totalBackers" },
-      { abi: escrowAbi, address: address as `0x${string}`, functionName: "nextMilestoneToRelease" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "creator" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "feeBps" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "donationsPaused" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "milestoneCount" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "totalGrossDonations" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "totalNetContributions" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "totalReleasedToCreator" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "totalFeePaid" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "totalBackers" },
+      { abi: ESCROW_ABI, address: address as `0x${string}`, functionName: "nextMilestoneToRelease" },
     ],
     query: { enabled },
   });
@@ -151,30 +127,32 @@ export function useCampaignReads(campaignAddress?: `0x${string}`) {
 }
 
 export function useMilestonesOnchain(campaignAddress?: `0x${string}`) {
+  const { contracts } = useContractsConfig();
   const campaign = useCampaignReads(campaignAddress);
-  const address = campaignAddress ?? ONCHAIN.campaignAddress;
+  const address = campaignAddress ?? contracts.CampaignEscrow;
+  const verifierAddress = contracts.MilestoneVerifier;
   const count = Number(campaign.milestoneCount ?? BigInt(0));
   const next = Number(campaign.nextMilestoneToRelease ?? BigInt(0));
   const milestoneIds = Array.from({ length: Math.max(0, count) }, (_, idx) => idx);
 
-  const contracts = [
+  const milestoneContracts = [
     ...milestoneIds.map((id) => ({
-      abi: escrowAbi,
+      abi: ESCROW_ABI,
       address: address as `0x${string}`,
       functionName: "milestones" as const,
       args: [BigInt(id)] as const,
     })),
-    ...(ONCHAIN.verifierAddress && address
+    ...(verifierAddress && address
       ? milestoneIds.flatMap((id) => [
           {
-            abi: verifierAbi,
-            address: ONCHAIN.verifierAddress,
+            abi: VERIFIER_ABI,
+            address: verifierAddress,
             functionName: "isMilestoneApproved" as const,
             args: [address, BigInt(id)] as const,
           },
           {
-            abi: verifierAbi,
-            address: ONCHAIN.verifierAddress,
+            abi: VERIFIER_ABI,
+            address: verifierAddress,
             functionName: "milestoneEvidence" as const,
             args: [address, BigInt(id)] as const,
           },
@@ -183,7 +161,7 @@ export function useMilestonesOnchain(campaignAddress?: `0x${string}`) {
   ];
 
   const reads = useReadContracts({
-    contracts,
+    contracts: milestoneContracts,
     query: {
       enabled: Boolean(address) && count > 0,
     },
@@ -201,7 +179,7 @@ export function useMilestonesOnchain(campaignAddress?: `0x${string}`) {
       return { id, amount, released, status };
     });
 
-    if (!(ONCHAIN.verifierAddress && address)) return base;
+    if (!(verifierAddress && address)) return base;
 
     const offset = milestoneIds.length;
     return base.map((item) => {
@@ -210,32 +188,35 @@ export function useMilestonesOnchain(campaignAddress?: `0x${string}`) {
       const evidence = results[offset + i + 1]?.result as string | undefined;
       return { ...item, approved, evidence };
     });
-  }, [reads.data, count, milestoneIds, next, address]);
+  }, [reads.data, count, milestoneIds, next, address, verifierAddress]);
 
   return { ...campaign, milestones };
 }
 
 export function useInvestorClaimable(campaignAddress?: `0x${string}`) {
+  const { contracts } = useContractsConfig();
   const { address } = useAccount();
-  const activeCampaign = campaignAddress ?? ONCHAIN.campaignAddress;
-  const enabled = Boolean(ONCHAIN.revenueSharingAddress && activeCampaign && address);
+  const activeCampaign = campaignAddress ?? contracts.CampaignEscrow;
+  const revenueSharingAddress = contracts.RevenueSharing;
+  const enabled = Boolean(revenueSharingAddress && activeCampaign && address);
 
   const claimable = useReadContract({
-    abi: revenueAbi,
-    address: ONCHAIN.revenueSharingAddress,
+    abi: REVENUE_SHARING_ABI,
+    address: revenueSharingAddress,
     functionName: "claimable",
     args: enabled ? [activeCampaign!, address!] : undefined,
     query: { enabled },
   });
 
   return {
-    hasRevenue: Boolean(ONCHAIN.revenueSharingAddress),
+    hasRevenue: Boolean(revenueSharingAddress),
     claimable: claimable.data,
   };
 }
 
 export function useCampaignActions(campaignAddress?: `0x${string}`) {
-  const address = campaignAddress ?? ONCHAIN.campaignAddress;
+  const { contracts } = useContractsConfig();
+  const address = campaignAddress ?? contracts.CampaignEscrow;
   const donate = useWriteContract();
   const claim = useWriteContract();
   const release = useWriteContract();
@@ -247,7 +228,7 @@ export function useCampaignActions(campaignAddress?: `0x${string}`) {
   const donateNative = (amount: string) => {
     if (!address) return;
     donate.writeContract({
-      abi: escrowWriteAbi,
+      abi: ESCROW_ABI,
       address,
       functionName: "donate",
       value: parseEther(amount),
@@ -257,7 +238,7 @@ export function useCampaignActions(campaignAddress?: `0x${string}`) {
   const claimRevenue = () => {
     if (!address) return;
     claim.writeContract({
-      abi: escrowWriteAbi,
+      abi: ESCROW_ABI,
       address,
       functionName: "claimRevenue",
     });
@@ -266,7 +247,7 @@ export function useCampaignActions(campaignAddress?: `0x${string}`) {
   const releaseMilestone = (milestoneId: number) => {
     if (!address) return;
     release.writeContract({
-      abi: escrowWriteAbi,
+      abi: ESCROW_ABI,
       address,
       functionName: "releaseMilestone",
       args: [BigInt(milestoneId)],
@@ -300,15 +281,17 @@ export function useCampaignActions(campaignAddress?: `0x${string}`) {
 }
 
 export function useFactoryActions() {
+  const { contracts } = useContractsConfig();
+  const factoryAddress = contracts.ColmenaFactory;
   const create = useWriteContract();
   const createReceipt = useWaitForTransactionReceipt({ hash: create.data });
 
   const createCampaign = (milestoneAmountsNative: string[], metadataURI: string) => {
-    if (!ONCHAIN.factoryAddress) return;
+    if (!factoryAddress) return;
     const parsed = milestoneAmountsNative.map((value) => parseEther(value));
     create.writeContract({
-      abi: factoryAbi,
-      address: ONCHAIN.factoryAddress,
+      abi: FACTORY_ABI,
+      address: factoryAddress,
       functionName: "createCampaign",
       args: [parsed, metadataURI],
     });
@@ -320,7 +303,7 @@ export function useFactoryActions() {
     for (const log of createReceipt.data.logs) {
       try {
         const decoded = decodeEventLog({
-          abi: factoryAbi,
+          abi: FACTORY_ABI,
           data: log.data,
           topics: log.topics,
           eventName: "CampaignCreated",
@@ -336,7 +319,7 @@ export function useFactoryActions() {
   }, [createReceipt.data]);
 
   return {
-    hasFactoryActions: Boolean(ONCHAIN.factoryAddress),
+    hasFactoryActions: Boolean(factoryAddress),
     createCampaign,
     createdCampaignAddress,
     create: {
@@ -349,6 +332,8 @@ export function useFactoryActions() {
 }
 
 export function useVerifierActions() {
+  const { contracts } = useContractsConfig();
+  const verifierAddress = contracts.MilestoneVerifier;
   const approve = useWriteContract();
   const revoke = useWriteContract();
 
@@ -356,27 +341,27 @@ export function useVerifierActions() {
   const revokeReceipt = useWaitForTransactionReceipt({ hash: revoke.data });
 
   const approveMilestone = (campaign: `0x${string}`, milestoneId: number, evidenceURI: string) => {
-    if (!ONCHAIN.verifierAddress) return;
+    if (!verifierAddress) return;
     approve.writeContract({
-      abi: verifierAbi,
-      address: ONCHAIN.verifierAddress,
+      abi: VERIFIER_ABI,
+      address: verifierAddress,
       functionName: "approveMilestone",
       args: [campaign, BigInt(milestoneId), evidenceURI],
     });
   };
 
   const revokeMilestone = (campaign: `0x${string}`, milestoneId: number) => {
-    if (!ONCHAIN.verifierAddress) return;
+    if (!verifierAddress) return;
     revoke.writeContract({
-      abi: verifierAbi,
-      address: ONCHAIN.verifierAddress,
+      abi: VERIFIER_ABI,
+      address: verifierAddress,
       functionName: "revokeMilestone",
       args: [campaign, BigInt(milestoneId)],
     });
   };
 
   return {
-    hasVerifier: Boolean(ONCHAIN.verifierAddress),
+    hasVerifier: Boolean(verifierAddress),
     approveMilestone,
     revokeMilestone,
     approve: {

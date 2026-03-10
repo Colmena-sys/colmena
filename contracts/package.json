@@ -4,7 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "typecheck": "tsc --noEmit",
+    "deploy": "hardhat run scripts/deploy.ts --network hardhat",
+    "deploy:local": "hardhat run scripts/deploy.ts --network local",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network testnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network mainnet",
+    "test": "hardhat test",
+    "test:integration": "hardhat run scripts/integration-test.ts --network hardhat"
   },
   "keywords": [],
   "author": "",

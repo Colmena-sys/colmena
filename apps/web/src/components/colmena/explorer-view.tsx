@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { projects } from "@/lib/colmena-data";
 import { formatEthLike, formatInteger, shortAddress } from "@/lib/format";
-import { ONCHAIN } from "@/lib/onchain-config";
+import { useContractsConfig } from "@/lib/contracts";
 import { useCampaignReads, useFactoryReads, useNetworkPulse } from "@/hooks/use-colmena-onchain";
 
 export function ExplorerView() {
+  const { contracts } = useContractsConfig();
   const pulse = useNetworkPulse();
   const factory = useFactoryReads();
   const campaign = useCampaignReads();
@@ -21,7 +22,7 @@ export function ExplorerView() {
 
         <div className="grid gap-4 md:grid-cols-4">
           <Card title="Block">{pulse.blockNumber ? `#${formatInteger(pulse.blockNumber)}` : "—"}</Card>
-          <Card title="Factory">{factory.hasFactory ? shortAddress(ONCHAIN.factoryAddress) : "No configurada"}</Card>
+          <Card title="Factory">{factory.hasFactory ? shortAddress(contracts.ColmenaFactory) : "No configurada"}</Card>
           <Card title="Campaigns">{factory.campaignCount ? factory.campaignCount.toString() : "—"}</Card>
           <Card title="Fee bps">{factory.platformFeeBps ? factory.platformFeeBps.toString() : "—"}</Card>
         </div>
@@ -34,7 +35,7 @@ export function ExplorerView() {
 
         <div className="mt-6 rounded-xl border border-white/20 bg-white/5 p-5">
           <p className="text-sm text-white/70">
-            Factory activa: {factory.hasFactory ? shortAddress(ONCHAIN.factoryAddress) : "sin datos on-chain"}
+            Factory activa: {factory.hasFactory ? shortAddress(contracts.ColmenaFactory) : "sin datos on-chain"}
           </p>
         </div>
 

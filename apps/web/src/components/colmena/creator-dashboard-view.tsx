@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { milestonesByProject, projects } from "@/lib/colmena-data";
 import { formatEthLike, formatInteger, shortAddress } from "@/lib/format";
-import { ONCHAIN } from "@/lib/onchain-config";
+import { useContractsConfig } from "@/lib/contracts";
 import {
   useCampaignActions,
   useFactoryActions,
@@ -19,9 +19,10 @@ export function CreatorDashboardView() {
   const router = useRouter();
   const pulse = useNetworkPulse();
   const factory = useFactoryActions();
+  const { contracts } = useContractsConfig();
   const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
   const setActiveCampaignAddress = useCampaignContextStore((state) => state.setActiveCampaignAddress);
-  const selectedCampaignAddress = factory.createdCampaignAddress ?? activeCampaignAddress ?? ONCHAIN.campaignAddress;
+  const selectedCampaignAddress = factory.createdCampaignAddress ?? activeCampaignAddress ?? contracts.CampaignEscrow;
   const campaign = useMilestonesOnchain(selectedCampaignAddress);
   const actions = useCampaignActions(selectedCampaignAddress);
   const chain = useFujiGuard();

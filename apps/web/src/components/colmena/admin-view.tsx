@@ -1,7 +1,7 @@
 "use client";
 
 import { formatEthLike, formatInteger, shortAddress } from "@/lib/format";
-import { ONCHAIN } from "@/lib/onchain-config";
+import { useContractsConfig } from "@/lib/contracts";
 import {
   useCampaignReads,
   useFactoryReads,
@@ -12,8 +12,9 @@ import {
 import { useCampaignContextStore } from "@/store/campaign-context";
 
 export function AdminView() {
+  const { contracts } = useContractsConfig();
   const activeCampaignAddress = useCampaignContextStore((state) => state.activeCampaignAddress);
-  const campaignAddress = activeCampaignAddress ?? ONCHAIN.campaignAddress;
+  const campaignAddress = activeCampaignAddress ?? contracts.CampaignEscrow;
   const pulse = useNetworkPulse();
   const factory = useFactoryReads();
   const campaign = useCampaignReads(campaignAddress);
@@ -40,7 +41,7 @@ export function AdminView() {
 
         <div className="grid gap-4 md:grid-cols-5">
           <Card title="Block">{pulse.blockNumber ? formatInteger(pulse.blockNumber) : "—"}</Card>
-          <Card title="Factory">{shortAddress(ONCHAIN.factoryAddress)}</Card>
+          <Card title="Factory">{shortAddress(contracts.ColmenaFactory)}</Card>
           <Card title="Campaign">{shortAddress(campaignAddress)}</Card>
           <Card title="Campaigns">{factory.campaignCount ? factory.campaignCount.toString() : "—"}</Card>
           <Card title="Fee">{factory.platformFeeBps ? `${factory.platformFeeBps.toString()} bps` : "—"}</Card>

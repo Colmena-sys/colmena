@@ -1,0 +1,19 @@
+{
+  "name": "colmena",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev:frontend",
+    "build": "npm run build:frontend",
+    "deploy": "npm --prefix contracts run deploy",
+    "dev:frontend": "npm --prefix apps/web run dev",
+    "build:frontend": "npm --prefix apps/web run build",
+    "typecheck:frontend": "npm --prefix apps/web run typecheck",
+    "lint:frontend": "npm --prefix apps/web run lint",
+    "compile:contracts": "npm --prefix contracts run compile",
+    "typecheck:contracts": "npm --prefix contracts run typecheck",
+    "deploy:local": "npm --prefix contracts run deploy:local",
+    "deploy:testnet": "npm --prefix contracts run deploy:testnet",
+    "deploy:mainnet": "npm --prefix contracts run deploy:mainnet",
+    "test:integration": "npm --prefix contracts run test:integration"
+  }
+}
